@@ -27,7 +27,7 @@ It runs entirely on the CPU, requires **no model changes**, and fits seamlessly 
 
 ## ✨ Key Features
 
-- **Extreme Memory Compression**: 4–8× smaller KV cache footprints via 2-bit, 3-bit, and 4-bit Max-Lloyd quantization.
+- **Extreme Memory Compression**: 4–8× smaller KV cache footprints than FP16 via 2-bit, 3-bit, and 4-bit Max-Lloyd quantization (8×, 5.3×, and 4× respectively; 16×/10.7×/8× vs FP32).
 - **Unified SIMD Pipeline**: 2/3/4-bit decoding shares a single, quad-unrolled branchless loop using AVX2 intrinsics. No scalar fallbacks.
 - **Hybrid Execution**: Automatically routes short sequences (≤ 256 tokens) to FP32 and long sequences to quantized SIMD, maximizing speed without data copying.
 - **Multi-Backend Support (V2.1)**: Drop-in wrappers for `transformers` and `llama-cpp-python`.
@@ -63,7 +63,7 @@ from adaptq import create_adapter
 
 model_id = "Qwen/Qwen2-0.5B"
 tokenizer = AutoTokenizer.from_pretrained(model_id)
-model = AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=torch.float32)
+model = AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=torch.float16)  # FP16 baseline — the reference for the compression figures above
 
 # Wrap the model with AdapTQ (4-bit quantization, 2048 capacity)
 adapter = create_adapter("transformers", model=model, bits=4, capacity=2048)
@@ -99,7 +99,7 @@ At large context lengths, attention becomes profoundly memory-bandwidth bound. A
 
 | Metric | FP16 Baseline | AdapTQ (4-bit) | Improvement |
 | :--- | :--- | :--- | :--- |
-| **Memory per Token (d=128)** | 512 bytes | 64 bytes | **8.0× smaller** |
+| **Memory per Token (d=128, K+V)** | 512 bytes | 128 bytes | **4.0× smaller** |
 | **Throughput (Seq > 2k)** | ~720 tok/s | ~1,139 tok/s | **1.5× faster** |
 | **Cosine Similarity (Quality)** | 1.000 | 0.947 | Minimal Distortion |
 
@@ -183,7 +183,7 @@ cd .. && python tests/run_tests.py
 ## ❓ FAQ & Troubleshooting
 
 **Q: My model outputs gibberish when using 2-bit quantization.**
-> A: 2-bit quantization is highly aggressive (16x compression). It is recommended only for robust, large-scale models (>7B parameters) or for highly structured summarization tasks. Stick to `bits=4` for standard chat models like Qwen2-0.5B or TinyLlama.
+> A: 2-bit quantization is highly aggressive (8× vs FP16, 16× vs FP32). It is recommended only for robust, large-scale models (>7B parameters) or for highly structured summarization tasks. Stick to `bits=4` for standard chat models like Qwen2-0.5B or TinyLlama.
 
 **Q: Does AdapTQ require CUDA/GPU?**
 > A: No. AdapTQ is explicitly designed for **CPU edge inference**. It relies heavily on AVX2/FMA instructions found on standard x86 processors. ARM NEON support is planned for future roadmaps.
